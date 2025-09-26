@@ -1,0 +1,130 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Student Dashboard{% endblock %}</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Optional app CSS -->
+  <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+
+  <style>
+    /* small theme tweaks to ensure consistent green look */
+    .sidebar {
+      width: 250px;
+      min-height: 100vh;
+      background: #198754; /* bootstrap success */
+      color: #fff;
+    }
+    .sidebar .nav-link {
+      color: rgba(255,255,255,0.95);
+    }
+    .sidebar .nav-link:hover,
+    .sidebar .nav-link.active {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      border-radius: 6px;
+    }
+    .page-heading { color: #198754; } /* text-success */
+    .content-area { background: #f8f9fa; min-height: 100vh; }
+    @media (max-width: 767px) {
+      .sidebar { position: fixed; z-index: 1035; transform: translateX(-260px); transition: transform .25s ease; }
+      .sidebar.show { transform: translateX(0); }
+      #overlay { display:block; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1030; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- top navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+      <button class="btn btn-light d-lg-none me-2" id="sidebarToggleMobile" aria-label="Toggle sidebar">☰</button>
+
+      <a class="navbar-brand fw-bold text-white" href="{% url 'attendance:student_dashboard' %}">Attendance</a>
+
+      <div class="ms-auto d-flex align-items-center">
+        <div class="me-3 text-white small">
+          {% if user.is_authenticated %}
+            {{ user.get_full_name|default:user.username }}
+          {% endif %}
+        </div>
+        <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="d-flex">
+    <!-- sidebar -->
+    <aside class="sidebar d-none d-lg-block p-3">
+      <div class="mb-4">
+        <h5 class="fw-bold text-white mb-1">Student Panel</h5>
+        <small class="text-white-50">Attendance System</small>
+      </div>
+
+      <ul class="nav nav-pills flex-column gap-1">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}"
+             href="{% url 'attendance:student_dashboard' %}">📊 Dashboard</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'my_records' %}active{% endif %}"
+             href="{% url 'attendance:my_records' %}">📝 My Records</a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- mobile sidebar (hidden by default) -->
+    <aside id="mobileSidebar" class="sidebar d-lg-none p-3" style="display:none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="fw-bold text-white">Student Panel</div>
+        <button class="btn btn-sm btn-light" id="closeSidebarMobile">✕</button>
+      </div>
+      <ul class="nav nav-pills flex-column gap-1">
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'attendance:student_dashboard' %}">📊 Dashboard</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'attendance:my_records' %}">📝 My Records</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'attendance:check_in' %}">⏱ Check In</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'attendance:check_out' %}">⏲ Check Out</a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- main content -->
+    <main class="flex-grow-1 content-area p-4">
+      <h2 class="page-heading mb-3">{% block page_title %}{% endblock %}</h2>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const mobileToggle = document.getElementById('sidebarToggleMobile');
+    const mobileSidebar = document.getElementById('mobileSidebar');
+    const closeMobile = document.getElementById('closeSidebarMobile');
+
+    if (mobileToggle) {
+      mobileToggle.addEventListener('click', () => {
+        mobileSidebar.style.display = 'block';
+        mobileSidebar.classList.add('show');
+      });
+    }
+    if (closeMobile) {
+      closeMobile.addEventListener('click', () => {
+        mobileSidebar.classList.remove('show');
+        mobileSidebar.style.display = 'none';
+      });
+    }
+  </script>
+</body>
+</html>
