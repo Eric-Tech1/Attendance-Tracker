@@ -156,17 +156,28 @@ class AdminDashboardView(TemplateView):
         today = timezone.localdate()
 
         # Total students
-        ctx['total_students'] = Student.objects.count()
+        total_students = Student.objects.count()
+        ctx['total_students'] = total_students
 
         # Total attendance records
         ctx['total_records'] = AttendanceRecord.objects.count()
 
         # Attendance today
-        ctx['present_today'] = AttendanceRecord.objects.filter(date=today, status="Present").count()
-        ctx['absent_today'] = ctx['total_students'] - ctx['present_today']
+        today_records = AttendanceRecord.objects.filter(date=today)
+        present_today = today_records.filter(status="Present").count()
+        absent_today = total_students - present_today if total_students else 0
+
+        ctx['today_records'] = today_records
+        ctx['present_today'] = present_today
+        ctx['absent_today'] = absent_today
+        ctx['today_records_count'] = today_records.count()
 
         # Recent 10 records (with student relation)
-        ctx['recent_records'] = AttendanceRecord.objects.select_related("student").order_by("-date")[:10]
+        ctx['recent_records'] = (
+            AttendanceRecord.objects
+            .select_related("student")
+            .order_by("-date")[:10]
+        )
 
         return ctx
 
@@ -293,4 +304,17 @@ class AdminRecordsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_staff or self.request.user.is_superuser
 
     def get_queryset(self):
-        return AttendanceRecord.objects.all().order_by('-date')
+        queryset = AttendanceRecord.objects.select_related("student__user").order_by("-date")
+        request = self.request
+        matric_no = request.GET.get("matric_no")
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if matric_no:
+            queryset = queryset.filter(student__matric_no__icontains=matric_no)
+        elif start_date and end_date:
+            queryset = queryset.filter(date__range=[start_date, end_date])
+
+        return queryset
+
+

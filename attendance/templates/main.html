@@ -52,9 +52,13 @@
           {% if user.is_authenticated %}
             {{ user.get_full_name|default:user.username }}
           {% endif %}
-        </div>
-        <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
-      </div>
+         <!-- ✅ Logout form -->
+        <form method="post" action="{% url 'logout' %}" class="d-none d-md-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+        </form>
+    </div>
+</nav>
     </div>
   </nav>
 

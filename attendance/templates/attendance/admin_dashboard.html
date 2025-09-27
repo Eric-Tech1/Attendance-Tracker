@@ -2,72 +2,111 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">Admin Dashboard</h2>
+<style>
+    body {
+        background: linear-gradient(135deg, #e9f7ef, #f8fffa);
+    }
+    .dashboard-card {
+        border-radius: 10px;
+        border: none;
+    }
+    .dashboard-card .card-body h5 {
+        font-weight: 500;
+    }
+    .dashboard-card .card-body h2 {
+        font-weight: bold;
+    }
+    .records-card {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .records-card .card-header {
+        background: #198754;
+        color: #fff;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .table th {
+        background: #d1e7dd !important;
+    }
+</style>
 
-<div class="row text-center mb-4">
-    <div class="col-md-3">
-        <div class="card shadow">
-            <div class="card-body bg-success text-white rounded">
-                <h5>Total Students</h5>
-                <h3>{{ total_students }}</h3>
-            </div>
-        </div>
+<h2 class="mt-4 fw-bold text-success">📊 Admin Dashboard</h2>
+
+<!-- Cards row -->
+<div class="row mt-3">
+  <div class="col-xl-3 col-md-6 col-sm-6 mb-3">
+    <div class="card text-white bg-success shadow dashboard-card">
+      <div class="card-body text-center">
+        <h5>Present Today</h5>
+        <h2>{{ present_today }}</h2>
+      </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow">
-            <div class="card-body bg-success text-white rounded">
-                <h5>Total Records</h5>
-                <h3>{{ total_records }}</h3>
-            </div>
-        </div>
+  </div>
+  <div class="col-xl-3 col-md-6 col-sm-6 mb-3">
+    <div class="card text-white bg-danger shadow dashboard-card">
+      <div class="card-body text-center">
+        <h5>Absent Today</h5>
+        <h2>{{ absent_today }}</h2>
+      </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow">
-            <div class="card-body bg-dark text-white rounded">
-                <h5>Present Today</h5>
-                <h3>{{ present_today }}</h3>
-            </div>
-        </div>
+  </div>
+  <div class="col-xl-3 col-md-6 col-sm-6 mb-3">
+    <div class="card text-white bg-primary shadow dashboard-card">
+      <div class="card-body text-center">
+        <h5>Records Today</h5>
+        <h2>{{ today_records_count }}</h2>
+      </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow">
-            <div class="card-body bg-secondary text-white rounded">
-                <h5>Absent Today</h5>
-                <h3>{{ absent_today }}</h3>
-            </div>
-        </div>
+  </div>
+  <div class="col-xl-3 col-md-6 col-sm-6 mb-3">
+    <div class="card text-white bg-dark shadow dashboard-card">
+      <div class="card-body text-center">
+        <h5>Total Students</h5>
+        <h2>{{ total_students }}</h2>
+      </div>
     </div>
+  </div>
 </div>
 
-<h4 class="bg-success text-white p-2 rounded">Recent Attendance Records</h4>
-<table class="table table-bordered mt-3">
-    <thead class="table-success">
-        <tr>
+<!-- Today's records table -->
+<div class="card shadow mt-4 records-card">
+  <div class="card-header">
+    Today's Attendance
+  </div>
+  <div class="card-body">
+    {% if today_records %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="text-center">
+          <tr>
             <th>Student</th>
-            <th>Date</th>
-            <th>Check-In</th>
-            <th>Check-Out</th>
+            <th>Matric No</th>
             <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for record in recent_records %}
-        <tr>
-            <td>{{ record.student.user.get_full_name|default:record.student.user.username }}</td>
-            <td>{{ record.date|date:"M. d, Y" }}</td>
-            <td>{{ record.check_in|default:"—" }}</td>
-            <td>{{ record.check_out|default:"—" }}</td>
-            <td>
-                {% if record.status == "Present" %}
-                    <span class="badge bg-success">Present</span>
-                {% else %}
-                    <span class="badge bg-danger">Absent</span>
-                {% endif %}
+            <th>Check-in</th>
+            <th>Check-out</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in today_records %}
+          <tr>
+            <td>{{ rec.student.user.get_full_name }}</td>
+            <td>{{ rec.student.matric_no }}</td>
+            <td class="text-center">
+              <span class="badge {% if rec.status == 'Present' %} bg-success {% else %} bg-danger {% endif %}">
+                {{ rec.status }}
+              </span>
             </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="5" class="text-center">No records found.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+            <td>{{ rec.check_in|default:"—" }}</td>
+            <td>{{ rec.check_out|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted text-center">No records yet today.</p>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

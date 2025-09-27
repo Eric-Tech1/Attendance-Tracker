@@ -3,37 +3,46 @@
 {% block page_title %}Manage Locations{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead class="table-success">
-                <tr>
-                    <th>Name</th>
-                    <th>Latitude</th>
-                    <th>Longitude</th>
-                    <th>Radius (m)</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for location in locations %}
-                <tr>
-                    <td>{{ location.name }}</td>
-                    <td>{{ location.latitude }}</td>
-                    <td>{{ location.longitude }}</td>
-                    <td>{{ location.allowed_radius }}</td>
-                    <td>
-                        <a href="{% url 'attendance:location_edit' location.pk %}" 
-                           class="btn btn-warning btn-sm">Edit</a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="5" class="text-center">No locations found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="bg-light p-4 rounded shadow-sm">
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-success text-left">
+                        <tr>
+                            <th>Name</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Radius (m)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for location in locations %}
+                        <tr>
+                            <td>{{ location.name }}</td>
+                            <td>{{ location.latitude }}</td>
+                            <td>{{ location.longitude }}</td>
+                            <td>{{ location.allowed_radius }}</td>
+                            <td>
+                                <a href="{% url 'attendance:location_edit' location.pk %}" 
+                                   class="btn btn-sm btn-outline-warning">
+                                    Edit
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">
+                                No locations found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
+
