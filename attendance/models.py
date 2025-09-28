@@ -19,8 +19,19 @@ class Student(models.Model):
     matric_no = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=100)
 
+    # 🔹 WebAuthn credential fields for biometric auth
+    webauthn_credential_id = models.BinaryField(null=True, blank=True, editable=False)
+    webauthn_public_key = models.BinaryField(null=True, blank=True, editable=False)
+    webauthn_sign_count = models.PositiveIntegerField(default=0, editable=False)
+
+    # helper field to check if registered
+    @property
+    def fingerprint_registered(self):
+        return self.webauthn_credential_id is not None and self.webauthn_public_key is not None
+
     def __str__(self):
         return f"{self.matric_no} - {self.first_name} {self.last_name}"
+
 
 
 class AttendanceRecord(models.Model):
@@ -42,7 +53,7 @@ class AttendanceRecord(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location = models.ForeignKey(
-        Location,
+        "Location",  # string reference avoids circular import
         on_delete=models.SET_NULL,
         null=True,
         blank=True

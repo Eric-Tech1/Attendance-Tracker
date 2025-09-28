@@ -57,6 +57,16 @@ h2 {
     </div>
     {% endif %}
 
+    <!-- Fingerprint Registration Check -->
+    {% if not student.fingerprint_registered %}
+    <div class="alert alert-warning mb-4">
+        <strong>⚠️ Fingerprint not registered!</strong>  
+        Please <a href="{% url 'attendance:register_fingerprint' %}" class="btn btn-sm btn-success ms-2">
+            Register Fingerprint
+        </a> before you can check in.
+    </div>
+    {% endif %}
+
     <!-- Today's Attendance -->
     <div class="card shadow-sm mb-5 border-success">
         <div class="card-header bg-success text-white">
@@ -75,22 +85,25 @@ h2 {
             {% endif %}
 
             <!-- Actions -->
+            {% if student.fingerprint_registered %}
             <div class="d-flex flex-wrap gap-3 mt-4">
                 <!-- Check In -->
-                <form id="checkInForm" action="{% url 'attendance:check_in' %}" method="post" class="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
-                    {% csrf_token %}
-                    <label for="location" class="form-label mb-0 me-2">Select Lab:</label>
-                    <select name="location" id="location" required class="form-select w-auto">
-                        <option value="" disabled selected>-- Choose --</option>
-                        {% for loc in locations %}
-                        <option value="{{ loc.id }}">{{ loc.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <input type="hidden" name="latitude" id="latitude">
-                    <input type="hidden" name="longitude" id="longitude">
-                    <button type="submit" id="checkInBtn" class="btn btn-success" disabled>
-                        <i class="bi bi-box-arrow-in-right me-1"></i>Check In
-                    </button>
+                <form id="checkInForm" action="{% url 'attendance:check_in' %}" method="post" 
+                    class="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
+                        {% csrf_token %}
+                        <label for="location" class="form-label mb-0 me-2">Select Lab:</label>
+                        <select name="location" id="location" required class="form-select w-auto">
+                            <option value="" disabled selected>-- Choose --</option>
+                            {% for loc in locations %}
+                            <option value="{{ loc.id }}">{{ loc.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="latitude" id="latitude">
+                        <input type="hidden" name="longitude" id="longitude">
+                        <input type="hidden" name="assertion" id="assertionField">
+                        <button type="button" id="checkInBtn" class="btn btn-success" disabled>
+                            <i class="bi bi-box-arrow-in-right me-1"></i>Check In
+                        </button>
                 </form>
 
                 <!-- Check Out -->
@@ -102,6 +115,7 @@ h2 {
                     </button>
                 </form>
             </div>
+            {% endif %}
         </div>
     </div>
 
@@ -139,11 +153,14 @@ h2 {
     </div>
 </div>
 
+{% if student.fingerprint_registered %}
 <script>
 const locationSelect = document.getElementById("location");
 const checkInBtn = document.getElementById("checkInBtn");
 const latitudeField = document.getElementById("latitude");
 const longitudeField = document.getElementById("longitude");
+const assertionField = document.getElementById("assertionField");
+const checkInForm = document.getElementById("checkInForm");
 
 locationSelect.addEventListener("change", () => {
     checkInBtn.disabled = !(locationSelect.value && latitudeField.value && longitudeField.value);
@@ -162,6 +179,39 @@ window.onload = function() {
         alert("❌ Geolocation is not supported by this browser.");
     }
 };
+
+// ✅ Biometric authentication before submitting
+checkInBtn.addEventListener("click", async () => {
+    try {
+        const publicKey = {
+            challenge: new Uint8Array(32),  // ⚠️ should be set by backend session
+            userVerification: "required",
+            allowCredentials: [] // ⚠️ backend can send credential IDs here
+        };
+        
+        const assertion = await navigator.credentials.get({ publicKey });
+
+        const authData = {
+            id: assertion.id,
+            rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
+            type: assertion.type,
+            response: {
+                clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON))),
+                authenticatorData: btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData))),
+                signature: btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature))),
+                userHandle: assertion.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(assertion.response.userHandle))) : null,
+            }
+        };
+
+        assertionField.value = JSON.stringify(authData);
+        checkInForm.submit();
+
+    } catch (err) {
+        alert("❌ Biometric verification failed. Please try again.");
+        console.error("Biometric error:", err);
+    }
+});
 </script>
+{% endif %}
 
 {% endblock %}

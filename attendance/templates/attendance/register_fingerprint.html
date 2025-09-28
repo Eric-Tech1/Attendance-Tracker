@@ -1,0 +1,53 @@
+{% extends "main.html" %}
+{% block title %}Register Fingerprint{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="card shadow-sm border-success">
+        <div class="card-header bg-success text-white">
+            <i class="bi bi-fingerprint me-2"></i> Register Fingerprint
+        </div>
+        <div class="card-body text-center">
+            
+            {% if student.has_fingerprint %}
+                <!-- Already registered -->
+                <div class="alert alert-success" role="alert">
+                    <i class="bi bi-check-circle"></i> You have already registered your fingerprint.  
+                    <br> It will be used automatically for check-ins.
+                </div>
+            {% else %}
+                <!-- New registration -->
+                <p class="mb-4">Place your finger on the sensor to register your fingerprint for future check-ins.</p>
+                
+                <form method="post" id="fingerprint-form">
+                    {% csrf_token %}
+                    <!-- Hidden input to hold fingerprint data -->
+                    <input type="hidden" name="fingerprint_data" id="fingerprint_data">
+
+                    <button type="button" class="btn btn-success mb-3" onclick="captureFingerprint()">
+                        <i class="bi bi-fingerprint"></i> Capture Fingerprint
+                    </button>
+                    
+                    <br>
+                    <button type="submit" class="btn btn-primary" disabled id="save-btn">
+                        <i class="bi bi-save"></i> Save Fingerprint
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function captureFingerprint() {
+        // Simulate fingerprint capture (replace with real API/device integration later)
+        const fakeFingerprint = "fingerprint_" + new Date().getTime();
+        document.getElementById("fingerprint_data").value = fakeFingerprint;
+
+        // Enable save button after capture
+        document.getElementById("save-btn").disabled = false;
+
+        alert("Fingerprint captured successfully!");
+    }
+</script>
+{% endblock %}

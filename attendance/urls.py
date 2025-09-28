@@ -20,5 +20,6 @@ urlpatterns = [
     path("reports/", views.ReportView.as_view(), name="reports"),
     path('locations/<int:pk>/edit/', views.LocationUpdateView.as_view(), name='location_edit'),
     path("records/", views.AdminRecordsView.as_view(), name="admin_records"),
+    path("register-fingerprint/", views.register_fingerprint, name="register_fingerprint"),
 
 ]

@@ -14,6 +14,10 @@ from .utils import calculate_distance
 from django.contrib.auth.mixins import  UserPassesTestMixin
 from django.contrib.auth.models import User
 from .forms import StudentForm
+from django.http import JsonResponse
+from webauthn.helpers import options_to_json
+from webauthn.helpers.structs import PublicKeyCredentialRequestOptions
+from webauthn import verify_authentication_response
 
 # ---------------- UTILS ----------------
 def staff_or_admin(user):
@@ -50,29 +54,62 @@ class StudentDashboardView(TemplateView):
 
 @login_required
 def check_in(request):
-    """Handle student check-in with GPS validation and duplicate prevention."""
+    """Handle student check-in with GPS validation, fingerprint verification, and duplicate prevention."""
     student = get_object_or_404(Student, user=request.user)
+
+    # ✅ Step 0: Ensure student has registered a fingerprint
+    if not student.webauthn_credential_id or not student.webauthn_public_key:
+        messages.error(request, "⚠️ You must register your fingerprint before checking in.")
+        return redirect("attendance:student_dashboard")
 
     if request.method == "POST":
         location_id = request.POST.get("location")
         user_lat = request.POST.get("latitude")
         user_lon = request.POST.get("longitude")
+        assertion = request.POST.get("assertion")
 
-        # ✅ Step 1: Ensure form has all required data
+        # ✅ Step 1: Ensure all required data
         if not location_id or not user_lat or not user_lon:
             messages.error(request, "⚠️ Missing location or GPS data.")
             return redirect("attendance:student_dashboard")
 
+        if not assertion:
+            messages.error(request, "⚠️ Fingerprint verification required.")
+            return redirect("attendance:student_dashboard")
+
+        # ✅ Step 2: Fingerprint verification
         try:
-            # ✅ Step 2: Get selected lab
+            if "webauthn_challenge" not in request.session:
+                messages.error(request, "⚠️ Fingerprint challenge expired. Try again.")
+                return redirect("attendance:student_dashboard")
+
+            verification = verify_authentication_response(
+                credential=assertion,
+                expected_challenge=request.session.pop("webauthn_challenge"),
+                expected_rp_id="your-domain.com",  # 🔹 replace with your domain
+                expected_origin="https://your-domain.com",  # 🔹 replace with your frontend origin
+                credential_public_key=student.webauthn_public_key,
+                credential_current_sign_count=student.webauthn_sign_count,
+                require_user_verification=True,
+            )
+
+            # Update sign count (prevent replay attacks)
+            student.webauthn_sign_count = verification.new_sign_count
+            student.save()
+
+        except Exception as e:
+            print("⚠️ Fingerprint verification failed:", e)
+            messages.error(request, "❌ Fingerprint verification failed. Try again.")
+            return redirect("attendance:student_dashboard")
+
+        # ✅ Step 3: GPS & Attendance handling
+        try:
             location = get_object_or_404(Location, id=location_id)
 
-            # ✅ Step 3: Convert values
             user_lat, user_lon = float(user_lat), float(user_lon)
             loc_lat, loc_lon = float(location.latitude), float(location.longitude)
             allowed_radius = float(location.allowed_radius)
 
-            # ✅ Step 4: Calculate distance
             distance = calculate_distance(user_lat, user_lon, loc_lat, loc_lon)
             print(f"📍 Distance from {location.name}: {distance:.2f}m (allowed: {allowed_radius}m)")
 
@@ -80,7 +117,6 @@ def check_in(request):
                 messages.error(request, f"❌ Too far from {location.name}. Move closer to check in.")
                 return redirect("attendance:student_dashboard")
 
-            # ✅ Step 5: Handle record
             today = timezone.localdate()
             record, created = AttendanceRecord.objects.get_or_create(
                 student=student,
@@ -94,7 +130,7 @@ def check_in(request):
                 }
             )
 
-            if not created:  # record already exists
+            if not created:  # record exists
                 if record.check_in:
                     messages.info(request, f"ℹ️ Already checked in today at {record.location.name}.")
                 else:
@@ -113,9 +149,6 @@ def check_in(request):
             messages.error(request, f"Unexpected error: {e}")
 
     return redirect("attendance:student_dashboard")
-
-
-
 
 @login_required
 def check_out(request):
@@ -317,4 +350,28 @@ class AdminRecordsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         return queryset
 
+@login_required
+def register_fingerprint(request):
+    """First-time fingerprint registration for students."""
+    student = get_object_or_404(Student, user=request.user)
 
+    # If already registered, no need to repeat
+    if student.fingerprint_registered:
+        messages.info(request, "✅ Fingerprint already registered.")
+        return redirect("attendance:student_dashboard")
+
+    if request.method == "POST":
+        # Simulate saving a fingerprint credential
+        # In production: replace this with WebAuthn/FIDO2 integration
+        fake_credential_id = b"sample-credential-id"
+        fake_public_key = b"sample-public-key"
+
+        student.webauthn_credential_id = fake_credential_id
+        student.webauthn_public_key = fake_public_key
+        student.webauthn_sign_count = 1
+        student.save()
+
+        messages.success(request, "✅ Fingerprint registered successfully.")
+        return redirect("attendance:student_dashboard")
+
+    return render(request, "attendance/register_fingerprint.html")
