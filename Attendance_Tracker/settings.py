@@ -155,3 +155,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # settings.py
 LOGIN_REDIRECT_URL = '/attendance/'   # or wherever your dashboard/home is
 LOGOUT_REDIRECT_URL = '/accounts/login/'  # optional, so after logout they go to login
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://attendance-tracker-production-cf13.up.railway.app/"
+]
