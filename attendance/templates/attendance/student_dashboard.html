@@ -61,7 +61,7 @@ h2 {
     {% if not student.fingerprint_registered %}
     <div class="alert alert-warning mb-4">
         <strong>⚠️ Fingerprint not registered!</strong>  
-        Please <a href="{% url 'attendance:register_fingerprint' %}" class="btn btn-sm btn-success ms-2">
+        Please <a href="{% url 'attendance:register_fingerprint_page' %}" class="btn btn-sm btn-success ms-2">
             Register Fingerprint
         </a> before you can check in.
     </div>

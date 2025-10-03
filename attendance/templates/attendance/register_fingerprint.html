@@ -8,46 +8,173 @@
             <i class="bi bi-fingerprint me-2"></i> Register Fingerprint
         </div>
         <div class="card-body text-center">
-            
-            {% if student.has_fingerprint %}
+
+            {% if student.fingerprint_registered %}
                 <!-- Already registered -->
                 <div class="alert alert-success" role="alert">
-                    <i class="bi bi-check-circle"></i> You have already registered your fingerprint.  
+                    <i class="bi bi-check-circle"></i> You have already registered your fingerprint.
                     <br> It will be used automatically for check-ins.
                 </div>
             {% else %}
                 <!-- New registration -->
                 <p class="mb-4">Place your finger on the sensor to register your fingerprint for future check-ins.</p>
-                
-                <form method="post" id="fingerprint-form">
-                    {% csrf_token %}
-                    <!-- Hidden input to hold fingerprint data -->
-                    <input type="hidden" name="fingerprint_data" id="fingerprint_data">
 
-                    <button type="button" class="btn btn-success mb-3" onclick="captureFingerprint()">
-                        <i class="bi bi-fingerprint"></i> Capture Fingerprint
-                    </button>
-                    
-                    <br>
-                    <button type="submit" class="btn btn-primary" disabled id="save-btn">
-                        <i class="bi bi-save"></i> Save Fingerprint
-                    </button>
-                </form>
+                <button id="startBtn" class="btn btn-success mb-3">
+                    <i class="bi bi-fingerprint"></i> Start Registration
+                </button>
+
+                <div id="status" class="mt-3"></div>
             {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-    function captureFingerprint() {
-        // Simulate fingerprint capture (replace with real API/device integration later)
-        const fakeFingerprint = "fingerprint_" + new Date().getTime();
-        document.getElementById("fingerprint_data").value = fakeFingerprint;
-
-        // Enable save button after capture
-        document.getElementById("save-btn").disabled = false;
-
-        alert("Fingerprint captured successfully!");
+/* ---------- Helpers ---------- */
+function getCookie(name) {
+    // Standard Django CSRF cookie helper
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const c = cookies[i].trim();
+            if (c.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(c.substring(name.length + 1));
+                break;
+            }
+        }
     }
+    return cookieValue;
+}
+
+function bufferToBase64Url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlToBuffer(base64url) {
+    // pad base64 string then convert
+    const padLength = (4 - (base64url.length % 4)) % 4;
+    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(padLength);
+    const str = atob(base64);
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
+    return bytes.buffer;
+}
+
+function showStatus(msg, kind="info") {
+    const el = document.getElementById('status');
+    el.innerHTML = `<div class="alert alert-${kind}">${msg}</div>`;
+}
+
+/* ---------- Main flow ---------- */
+document.getElementById('startBtn')?.addEventListener('click', async () => {
+    try {
+        if (!window.PublicKeyCredential) {
+            showStatus("Your browser does not support WebAuthn / PublicKeyCredential.", "danger");
+            return;
+        }
+
+        showStatus("Requesting registration options from server...");
+
+        const csrftoken = getCookie('csrftoken');
+        // 1) Ask server for the PublicKey options (challenge, user.id, etc.)
+        const beginResp = await fetch("{% url 'attendance:webauthn_register_begin' %}", {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!beginResp.ok) {
+            const txt = await beginResp.text();
+            showStatus("Server error fetching options: " + txt, "danger");
+            return;
+        }
+
+        const optionsJson = await beginResp.json();
+        const publicKey = optionsJson.publicKey;
+
+        // 2) Convert base64url strings (challenge, user.id, any existing credential ids) to ArrayBuffers
+        publicKey.challenge = base64UrlToBuffer(publicKey.challenge);
+        if (publicKey.user && publicKey.user.id) {
+            publicKey.user.id = base64UrlToBuffer(publicKey.user.id);
+        }
+
+        if (publicKey.excludeCredentials) {
+            publicKey.excludeCredentials = publicKey.excludeCredentials.map(c => {
+                return {
+                    ...c,
+                    id: base64UrlToBuffer(c.id),
+                };
+            });
+        }
+
+        // Make sure we ask for platform authenticator for phone fingerprint
+        if (!publicKey.authenticatorSelection) {
+            publicKey.authenticatorSelection = {};
+        }
+        publicKey.authenticatorSelection.authenticatorAttachment = "platform"; // prefer device sensor
+        publicKey.authenticatorSelection.userVerification = "required";
+
+        showStatus("Prompting device for fingerprint (native UI should appear).");
+
+        // 3) Trigger authenticator (this will show phone fingerprint/face prompt)
+        const credential = await navigator.credentials.create({ publicKey });
+
+        if (!credential) {
+            showStatus("No credential returned by device.", "danger");
+            return;
+        }
+
+        // 4) Convert credential response to base64url-safe JSON to send to server
+        const clientDataJSON = bufferToBase64Url(credential.response.clientDataJSON);
+        const attestationObject = bufferToBase64Url(credential.response.attestationObject);
+        const rawId = bufferToBase64Url(credential.rawId);
+
+        const body = {
+            id: credential.id,
+            rawId: rawId,
+            type: credential.type,
+            response: {
+                clientDataJSON: clientDataJSON,
+                attestationObject: attestationObject
+            }
+        };
+
+        showStatus("Sending attestation to server for verification...");
+
+        // 5) Send attestation to server to verify and store credential
+        const completeResp = await fetch("{% url 'attendance:webauthn_register_complete' %}", {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(body)
+        });
+
+        const result = await completeResp.json();
+
+        if (completeResp.ok && result.success) {
+            showStatus("✅ Fingerprint registered successfully. You can now use it for check-ins.", "success");
+            // optionally reload or redirect to dashboard:
+            // window.setTimeout(() => window.location.href = "{% url 'attendance:student_dashboard' %}", 1200);
+        } else {
+            showStatus("❌ Registration failed: " + (result.error || "Unknown error"), "danger");
+            console.error("Registration server response:", result);
+        }
+
+    } catch (err) {
+        console.error("Registration error", err);
+        showStatus("Unexpected error: " + (err.message || err), "danger");
+    }
+});
 </script>
 {% endblock %}

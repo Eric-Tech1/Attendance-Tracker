@@ -20,6 +20,8 @@ urlpatterns = [
     path("reports/", views.ReportView.as_view(), name="reports"),
     path('locations/<int:pk>/edit/', views.LocationUpdateView.as_view(), name='location_edit'),
     path("records/", views.AdminRecordsView.as_view(), name="admin_records"),
-    path("register-fingerprint/", views.register_fingerprint, name="register_fingerprint"),
+    path("fingerprint/register/", views.register_fingerprint_page, name="register_fingerprint_page"),
+    path('webauthn/register/begin/', views.webauthn_register_begin, name='webauthn_register_begin'),
+    path('webauthn/register/complete/', views.webauthn_register_complete, name='webauthn_register_complete'),
 
 ]

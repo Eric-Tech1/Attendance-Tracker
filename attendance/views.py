@@ -14,10 +14,12 @@ from .utils import calculate_distance
 from django.contrib.auth.mixins import  UserPassesTestMixin
 from django.contrib.auth.models import User
 from .forms import StudentForm
-from django.http import JsonResponse
 from webauthn.helpers import options_to_json
 from webauthn.helpers.structs import PublicKeyCredentialRequestOptions
 from webauthn import verify_authentication_response
+import os, json, base64
+from django.http import JsonResponse, HttpResponseNotAllowed
+from django.conf import settings
 
 # ---------------- UTILS ----------------
 def staff_or_admin(user):
@@ -351,27 +353,92 @@ class AdminRecordsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return queryset
 
 @login_required
-def register_fingerprint(request):
-    """First-time fingerprint registration for students."""
+def register_fingerprint_page(request):
+    """Render the fingerprint registration template."""
     student = get_object_or_404(Student, user=request.user)
+    return render(request, "attendance/register_fingerprint.html", {"student": student})
 
-    # If already registered, no need to repeat
-    if student.fingerprint_registered:
-        messages.info(request, "✅ Fingerprint already registered.")
-        return redirect("attendance:student_dashboard")
+def b64url_encode(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b'=').decode('ascii')
 
-    if request.method == "POST":
-        # Simulate saving a fingerprint credential
-        # In production: replace this with WebAuthn/FIDO2 integration
-        fake_credential_id = b"sample-credential-id"
-        fake_public_key = b"sample-public-key"
+def b64url_decode(s: str) -> bytes:
+    padding = '=' * ((4 - len(s) % 4) % 4)
+    return base64.urlsafe_b64decode(s + padding)
 
-        student.webauthn_credential_id = fake_credential_id
-        student.webauthn_public_key = fake_public_key
-        student.webauthn_sign_count = 1
+@login_required
+def webauthn_register_begin(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    student = Student.objects.get(user=request.user)
+
+    # 1) Create a random challenge and save in session (must match verification later)
+    challenge = os.urandom(32)
+    request.session['webauthn_registration_challenge'] = b64url_encode(challenge)
+
+    # 2) Build publicKey options object (we return JSON that the front-end will consume)
+    publicKey = {
+        "challenge": b64url_encode(challenge),
+        "rp": {"name": "Attendance Tracker", "id": settings.RP_ID if hasattr(settings, "RP_ID") else request.get_host()},
+        # user.id must be bytes; convert student.pk or username to bytes
+        "user": {
+            "id": b64url_encode(str(student.pk).encode('utf-8')),
+            "name": request.user.username,
+            "displayName": request.user.get_full_name() or request.user.username
+        },
+        "pubKeyCredParams": [
+            {"type": "public-key", "alg": -7},  # ES256
+            {"type": "public-key", "alg": -257} # RS256 (optional)
+        ],
+        "timeout": 60000,
+        # You can include excludeCredentials here to prevent re-registering same authenticator
+        # "excludeCredentials": [...]
+        # "authenticatorSelection": {"authenticatorAttachment":"platform", "userVerification":"required"}
+    }
+
+    return JsonResponse({"publicKey": publicKey})
+
+
+@login_required
+def webauthn_register_complete(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    body = json.loads(request.body)
+    # body contains id, rawId (base64url), response: {clientDataJSON, attestationObject}
+
+    # You must verify attestation using a WebAuthn library (example pseudo):
+    #   verification = verify_registration_response(
+    #       credential=body,
+    #       expected_challenge=request.session.get('webauthn_registration_challenge'),
+    #       expected_rp_id=settings.RP_ID,
+    #       expected_origin=settings.ORIGIN,
+    #       require_user_verification=True,
+    #   )
+    #
+    # Then store verification.credential_public_key and verification.credential_id
+    #
+    # Below is a *placeholder* flow (you must use a real verify_* call from your webauthn library).
+
+    try:
+        # Example using a library (pseudo)
+        # verification = your_webauthn_lib.verify_attestation(body, expected_challenge, ...)
+        # credential_id_bytes = b64url_decode(body['rawId'])
+        # public_key_bytes = verification.credential_public_key
+        # sign_count = verification.sign_count
+
+        # For illustration only (do NOT use as real verification):
+        credential_id_bytes = b64url_decode(body.get('rawId'))
+        public_key_bytes = b'PLACEHOLDER_PUBLIC_KEY'  # replace with real key from verification
+        sign_count = 0
+
+        # Save on Student model fields (Student has BinaryFields we discussed earlier)
+        student = Student.objects.get(user=request.user)
+        student.webauthn_credential_id = credential_id_bytes
+        student.webauthn_public_key = public_key_bytes
+        student.webauthn_sign_count = sign_count
         student.save()
 
-        messages.success(request, "✅ Fingerprint registered successfully.")
-        return redirect("attendance:student_dashboard")
-
-    return render(request, "attendance/register_fingerprint.html")
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
