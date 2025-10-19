@@ -47,11 +47,15 @@ class StudentDashboardView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         student = get_object_or_404(Student, user=self.request.user)
         today = timezone.localdate()
+
+        ctx['student'] = student  # ✅ ADD THIS LINE
         ctx['today_record'] = AttendanceRecord.objects.filter(student=student, date=today).first()
         ctx['now'] = timezone.now()
         ctx['records'] = AttendanceRecord.objects.filter(student=student).order_by('-date')[:10]
         ctx['locations'] = Location.objects.all()
+
         return ctx
+
 
 
 @login_required
