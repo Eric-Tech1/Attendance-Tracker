@@ -53,6 +53,8 @@ class StudentDashboardView(TemplateView):
         ctx['now'] = timezone.now()
         ctx['records'] = AttendanceRecord.objects.filter(student=student).order_by('-date')[:10]
         ctx['locations'] = Location.objects.all()
+        ctx['student'] = student
+
 
         return ctx
 
