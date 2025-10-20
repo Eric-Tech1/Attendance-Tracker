@@ -180,17 +180,21 @@ window.onload = function() {
     }
 };
 
-// ✅ Biometric authentication before submitting
+// ✅ Real biometric authentication with backend challenge
 checkInBtn.addEventListener("click", async () => {
     try {
-        const publicKey = {
-            challenge: new Uint8Array(32),  // ⚠️ should be set by backend session
-            userVerification: "required",
-            allowCredentials: [] // ⚠️ backend can send credential IDs here
-        };
-        
+        // 1️⃣ Get challenge from backend
+        const challengeResponse = await fetch("{% url 'attendance:webauthn_register_begin' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
+        });
+        const { publicKey } = await challengeResponse.json();
+        publicKey.challenge = Uint8Array.from(atob(publicKey.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+
+        // 2️⃣ Ask for fingerprint on device
         const assertion = await navigator.credentials.get({ publicKey });
 
+        // 3️⃣ Convert and send result back to backend
         const authData = {
             id: assertion.id,
             rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
