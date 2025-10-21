@@ -23,7 +23,7 @@ urlpatterns = [
     path("fingerprint/register/", views.register_fingerprint_page, name="register_fingerprint_page"),
     path('webauthn/register/begin/', views.webauthn_register_begin, name='webauthn_register_begin'),
     path('webauthn/register/complete/', views.webauthn_register_complete, name='webauthn_register_complete'),
-    path('webauthn/authenticate/complete/', views.webauthn_authenticate_complete, name='webauthn_authenticate_complete'),
+    path('webauthn/authenticate/complete/', views.webauthn_authenticate_begin, name='webauthn_authenticate_begin'),
     path('webauthn/authenticate/complete/', views.webauthn_authenticate_complete, name='webauthn_authenticate_complete'),
 
 ]
