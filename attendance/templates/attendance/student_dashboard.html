@@ -184,7 +184,7 @@ window.onload = function() {
 checkInBtn.addEventListener("click", async () => {
     try {
         // 1️⃣ Get challenge from backend
-        const challengeResponse = await fetch("{% url 'attendance:webauthn_register_begin' %}", {
+        const challengeResponse = await fetch("{% url 'attendance:webauthn_authenticate_begin' %}", {
             method: "POST",
             headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
         });
@@ -207,13 +207,24 @@ checkInBtn.addEventListener("click", async () => {
             }
         };
 
-        assertionField.value = JSON.stringify(authData);
-        checkInForm.submit();
+       // 4️⃣ Send to backend for verification
+const verifyResponse = await fetch("{% url 'attendance:webauthn_authenticate_complete' %}", {
+  method: "POST",
+  headers: { 
+    "X-CSRFToken": "{{ csrf_token }}", 
+    "Content-Type": "application/json" 
+  },
+  body: JSON.stringify(authData)
+});
 
-    } catch (err) {
-        alert("❌ Biometric verification failed. Please try again.");
-        console.error("Biometric error:", err);
-    }
+const result = await verifyResponse.json();
+
+if (verifyResponse.ok && result.success) {
+  checkInForm.submit(); // ✅ Only submit attendance after verification passes
+} else {
+  alert("❌ Fingerprint verification failed: " + (result.error || "Unknown error"));
+}
+}
 });
 </script>
 {% endif %}

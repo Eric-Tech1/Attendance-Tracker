@@ -165,7 +165,7 @@ document.getElementById('startBtn')?.addEventListener('click', async () => {
         if (completeResp.ok && result.success) {
             showStatus("✅ Fingerprint registered successfully. You can now use it for check-ins.", "success");
             // optionally reload or redirect to dashboard:
-            // window.setTimeout(() => window.location.href = "{% url 'attendance:student_dashboard' %}", 1200);
+             window.setTimeout(() => window.location.href = "{% url 'attendance:student_dashboard' %}", 1200);
         } else {
             showStatus("❌ Registration failed: " + (result.error || "Unknown error"), "danger");
             console.error("Registration server response:", result);
