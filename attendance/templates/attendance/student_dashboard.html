@@ -162,32 +162,53 @@ const longitudeField = document.getElementById("longitude");
 const assertionField = document.getElementById("assertionField");
 const checkInForm = document.getElementById("checkInForm");
 
-locationSelect.addEventListener("change", () => {
+// 🔹 Enable check-in button only when location is selected and GPS is ready
+function updateButtonState() {
     checkInBtn.disabled = !(locationSelect.value && latitudeField.value && longitudeField.value);
-});
+}
 
-window.onload = function() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            latitudeField.value = position.coords.latitude;
-            longitudeField.value = position.coords.longitude;
-            if (locationSelect.value) checkInBtn.disabled = false;
-        }, function(error) {
-            alert("❌ Unable to get location. Please allow GPS.");
-        });
-    } else {
+// 🔹 Request location when user interacts (selects lab or clicks button)
+async function getLocation() {
+    if (!navigator.geolocation) {
         alert("❌ Geolocation is not supported by this browser.");
+        return;
     }
-};
+
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                latitudeField.value = position.coords.latitude;
+                longitudeField.value = position.coords.longitude;
+                updateButtonState();
+                resolve(true);
+            },
+            (error) => {
+                alert("❌ Unable to get location. Please allow GPS access.");
+                reject(error);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+}
+
+locationSelect.addEventListener("change", async () => {
+    await getLocation();
+});
 
 // ✅ Real biometric authentication with backend challenge
 checkInBtn.addEventListener("click", async () => {
     try {
+        // 🔹 Ensure we have current location
+        if (!latitudeField.value || !longitudeField.value) {
+            await getLocation();
+        }
+
         // 1️⃣ Get challenge from backend
         const challengeResponse = await fetch("{% url 'attendance:webauthn_authenticate_begin' %}", {
             method: "POST",
             headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
         });
+
         const { publicKey } = await challengeResponse.json();
         publicKey.challenge = Uint8Array.from(atob(publicKey.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 
@@ -207,26 +228,27 @@ checkInBtn.addEventListener("click", async () => {
             }
         };
 
-       // 4️⃣ Send to backend for verification
-const verifyResponse = await fetch("{% url 'attendance:webauthn_authenticate_complete' %}", {
-  method: "POST",
-  headers: { 
-    "X-CSRFToken": "{{ csrf_token }}", 
-    "Content-Type": "application/json" 
-  },
-  body: JSON.stringify(authData)
-});
+        // 4️⃣ Send to backend for verification
+        const verifyResponse = await fetch("{% url 'attendance:webauthn_authenticate_complete' %}", {
+            method: "POST",
+            headers: { 
+                "X-CSRFToken": "{{ csrf_token }}", 
+                "Content-Type": "application/json" 
+            },
+            body: JSON.stringify(authData)
+        });
 
-const result = await verifyResponse.json();
+        const result = await verifyResponse.json();
 
-if (verifyResponse.ok && result.success) {
-  checkInForm.submit(); // ✅ Only submit attendance after verification passes
-} else {
-  alert("❌ Fingerprint verification failed: " + (result.error || "Unknown error"));
-}
-}
+        if (verifyResponse.ok && result.success) {
+            checkInForm.submit(); // ✅ Submit attendance only after successful verification
+        } else {
+            alert("❌ Fingerprint verification failed: " + (result.error || "Unknown error"));
+        }
+    } catch (err) {
+        console.error("Error during verification:", err);
+        alert("❌ Something went wrong during fingerprint verification.");
+    }
 });
 </script>
 {% endif %}
-
-{% endblock %}
